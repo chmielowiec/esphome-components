@@ -94,6 +94,27 @@ optional<uint8_t> SX1276::read() {
   return {};
 }
 
+bool SX1276::read_in_task(uint8_t *buffer, size_t length, uint32_t offset) {
+  (void) offset;
+
+  while (length > 0) {
+    if (this->irq_pin_->digital_read()) {
+      if (!ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1)))
+        return false;
+    }
+
+    this->delegate_->begin_transaction();
+    this->delegate_->transfer(0x00);
+    while (length > 0 && !this->irq_pin_->digital_read()) {
+      *buffer++ = this->delegate_->transfer(0x00);
+      length--;
+    }
+    this->delegate_->end_transaction();
+  }
+
+  return true;
+}
+
 size_t SX1276::get_frame(uint8_t *buffer, size_t length, uint32_t offset) {
   // SX1276 reads byte-by-byte from FIFO (offset is ignored for FIFO-based reading)
   // Returns 1 on success, 0 if FIFO is empty (waiting for more data)
